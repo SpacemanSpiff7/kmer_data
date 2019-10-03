@@ -19,8 +19,8 @@ For example:
 OR:
 
 ```
-for variant in VCF(vcf_filepath):
-    var_object = Variant(variant)
+for var in VCF(vcf_filepath):
+    var_object = Variant(variant=var)
 ```
 
 There is also a class for kmer sequences, `Kmer`
