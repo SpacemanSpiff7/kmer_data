@@ -1,10 +1,12 @@
 import os
 import random
-from collections import Counter
+from collections import Counter, defaultdict
 import pandas as pd
 from pyfaidx import Fasta
 from cyvcf2 import VCF, Writer
 import itertools
+
+from src.kclass import Variant
 
 
 def append_variants_to_vcf(chrom, start, stop):
@@ -117,3 +119,14 @@ def get_transition(ref, alt):
         ref = complement(ref)
         alt = complement(alt)
     return ref + alt
+
+
+def get_variants(filepath):
+    """Returns a defaultdict containing all singleton variants contained in the input VCF file"""
+    variant_positions = defaultdict(Variant)
+    for variant in VCF(filepath):
+        if is_quality_variant(variant):
+            # join is required because 'ALT' is returned as a list
+            variant_positions[variant.POS] = Variant(variant.REF, "".join(variant.ALT), variant.POS, chrom=variant.CHROM)
+    return variant_positions
+
