@@ -15,14 +15,14 @@ def append_variants_to_vcf(chrom, start, stop):
 
 def generate_sample_vcf(filename='/Users/simonelongo/too_big_for_icloud/gnomad.genomes.r2.1.1.sites.vcf.bgz'):
     """Takes a large VCF file and takes random samples from each chromosome to make a smaller VCF for testing"""
-    fa = Fasta('/Users/simonelongo/too_big_for_icloud/REFERENCE_GENOME_GRch37.fa')
+    reference_genome = Fasta('/Users/simonelongo/too_big_for_icloud/REFERENCE_GENOME_GRch37.fa')
     vcf = VCF(filename)
     write = Writer('samp.vcf', vcf)
     write.write_header()
-    keys = list(fa.keys())
+    keys = list(reference_genome.keys())
     for key in keys[0:25]:
         if key != 'MT':
-            begin = random.randint(1000, len(fa[key]) - 1000)
+            begin = random.randint(1000, len(reference_genome[key]) - 1000)
             os.system(append_variants_to_vcf(key, begin, begin + 1000))
     write.close()
 
@@ -66,6 +66,7 @@ def generate_kmers(k):
 
 
 def find_ref_kmer_freq(kmer_length):
+    """Count of occurrences of each kmer on the reference genome"""
     expected_path = 'data/chr22_' + str(kmer_length) + 'mer_frequency.csv'
     col_names = ['ref_count']
     if os.path.exists(expected_path):
@@ -88,6 +89,7 @@ def find_ref_kmer_freq(kmer_length):
 
 
 def is_vcf(f_path):
+    """Returns True if filepath is a valid VCF file"""
     tokens = os.path.splitext(f_path)
     if tokens[1] == '.vcf' or tokens[1] == '.gz':
         return True
@@ -110,6 +112,7 @@ def complete_sequence(adj_seq):
 
 
 def get_transition(ref, alt):
+    """Gives a common scheme for transitions when considering reverse complements"""
     if ref != 'A' and ref != 'C':
         ref = complement(ref)
         alt = complement(alt)
