@@ -8,6 +8,12 @@ class Variant:
         self.POS = pos
         self.chrom = chrom
 
+    def __init__(self, variant):
+        self.REF = variant.REF
+        self.ALT = variant.ALT
+        self.POS = variant.POS
+        self.chrom = variant.CHROM
+
     def __str__(self):
         # return "POS: " + str(self.POS) + "\tREF: " + str(self.REF) + "\tALT: " + str(self.ALT) + '\n'
         return str(self.chrom) + "\t" + str(self.POS) + "\t" + str(self.REF) + "\t" + str(self.ALT) + '\n'
