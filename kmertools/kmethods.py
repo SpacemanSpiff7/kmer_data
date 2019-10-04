@@ -7,7 +7,6 @@ from cyvcf2 import VCF, Writer
 import itertools
 
 
-
 def append_variants_to_vcf(chrom, start, stop):
     return "tabix /Users/simonelongo/too_big_for_icloud/gnomad.genomes.r2.1.1.sites.vcf.bgz " + str(chrom) + ":" + str(
         start) + "-" + str(
@@ -130,5 +129,13 @@ def get_variants(filepath):
     for variant in VCF(filepath):
         if is_quality_variant(variant):
             # join is required because 'ALT' is returned as a list
-            variant_positions[variant.CHROM][variant.POS] = Variant(variant.REF, "".join(variant.ALT), variant.POS, variant.CHROM)
+            variant_positions[variant.CHROM][variant.POS] = Variant(variant.REF, "".join(variant.ALT), variant.POS,
+                                                                    variant.CHROM)
     return variant_positions
+
+
+def process_variants(variants, kmer_size):
+    if not kmer_size % 2 == 1:
+        kmer_size += 1  # kmer size must be an odd number
+    fa = Fasta('/Users/simonelongo/too_big_for_icloud/REFERENCE_GENOME_GRch37.fa')
+
