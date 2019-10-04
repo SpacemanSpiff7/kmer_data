@@ -6,7 +6,6 @@ from pyfaidx import Fasta
 from cyvcf2 import VCF, Writer
 import itertools
 
-from src.kclass import Variant
 
 
 def append_variants_to_vcf(chrom, start, stop):
@@ -21,11 +20,11 @@ def generate_sample_vcf(filename='/Users/simonelongo/too_big_for_icloud/gnomad.g
     vcf = VCF(filename)
     write = Writer('samp.vcf', vcf)
     write.write_header()
-    keys = list(reference_genome.keys())
-    for key in keys[0:25]:
-        if key != 'MT':
-            begin = random.randint(1000, len(reference_genome[key]) - 1000)
-            os.system(append_variants_to_vcf(key, begin, begin + 1000))
+    chrom_num = list(reference_genome.keys())
+    for chrom in chrom_num[0:25]:
+        if chrom != 'MT':
+            begin = random.randint(1000, len(reference_genome[chrom]) - 1000)
+            os.system(append_variants_to_vcf(chrom, begin, begin + 1000))
     write.close()
 
 
@@ -126,6 +125,7 @@ def get_variants(filepath):
     Returns a defaultdict containing all singleton variants contained in the input VCF file:
     Default dict uses chromosome number as a key and maps to a defaultdict of variants arranged by position
     """
+    from kmertools.kclass import Variant
     variant_positions = defaultdict(lambda: defaultdict(Variant))
     for variant in VCF(filepath):
         if is_quality_variant(variant):

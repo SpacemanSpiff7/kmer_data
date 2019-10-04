@@ -1,4 +1,4 @@
-from src.kmethods import get_complementary_sequence
+from kmertools.kmethods import get_complementary_sequence
 
 
 class Variant:
