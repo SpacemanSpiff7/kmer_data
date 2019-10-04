@@ -2,12 +2,12 @@ from src.kmethods import get_complementary_sequence
 
 
 class Variant:
-    def __int__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         if len(kwargs) == 0:
             self.REF = args[0]
             self.ALT = args[1]
             self.POS = args[2]
-            self.chrom = args[3]
+            self.CHROM = args[3]
         else:
             variant = kwargs.get('variant')
             self.REF = variant.REF

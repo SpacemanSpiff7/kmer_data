@@ -122,11 +122,13 @@ def get_transition(ref, alt):
 
 
 def get_variants(filepath):
-    """Returns a defaultdict containing all singleton variants contained in the input VCF file"""
-    variant_positions = defaultdict(Variant)
+    """
+    Returns a defaultdict containing all singleton variants contained in the input VCF file:
+    Default dict uses chromosome number as a key and maps to a defaultdict of variants arranged by position
+    """
+    variant_positions = defaultdict(lambda: defaultdict(Variant))
     for variant in VCF(filepath):
         if is_quality_variant(variant):
             # join is required because 'ALT' is returned as a list
-            variant_positions[variant.POS] = Variant(variant.REF, "".join(variant.ALT), variant.POS, chrom=variant.CHROM)
+            variant_positions[variant.CHROM][variant.POS] = Variant(variant.REF, "".join(variant.ALT), variant.POS, variant.CHROM)
     return variant_positions
-
