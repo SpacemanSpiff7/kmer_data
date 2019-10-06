@@ -6,6 +6,8 @@ from pyfaidx import Fasta
 from cyvcf2 import VCF, Writer
 import itertools
 
+from kmertools.constants import REF_GENOME
+
 
 def append_variants_to_vcf(chrom, start, stop):
     return "tabix /Users/simonelongo/too_big_for_icloud/gnomad.genomes.r2.1.1.sites.vcf.bgz " + str(chrom) + ":" + str(
@@ -15,15 +17,12 @@ def append_variants_to_vcf(chrom, start, stop):
 
 def generate_sample_vcf(filename='/Users/simonelongo/too_big_for_icloud/gnomad.genomes.r2.1.1.sites.vcf.bgz'):
     """Takes a large VCF file and takes random samples from each chromosome to make a smaller VCF for testing"""
-    reference_genome = Fasta('/Users/simonelongo/too_big_for_icloud/REFERENCE_GENOME_GRch37.fa')
     vcf = VCF(filename)
     write = Writer('samp.vcf', vcf)
     write.write_header()
-    chrom_num = list(reference_genome.keys())
-    for chrom in chrom_num[0:25]:
-        if chrom != 'MT':
-            begin = random.randint(1000, len(reference_genome[chrom]) - 1000)
-            os.system(append_variants_to_vcf(chrom, begin, begin + 1000))
+    for chrom_num, chrom_len in REF_GENOME:
+        begin = random.randint(1000, chrom_len - 1000)
+        os.system(append_variants_to_vcf(chrom_num, begin, begin + 1000))
     write.close()
 
 
@@ -139,3 +138,16 @@ def process_variants(variants, kmer_size):
         kmer_size += 1  # kmer size must be an odd number
     fa = Fasta('/Users/simonelongo/too_big_for_icloud/REFERENCE_GENOME_GRch37.fa')
 
+
+def generate_csv_from_variants(variants, outfile="variants_samp.csv", close=False):
+    """Converts a dictionary to a csv to prevemt redundant slow operations"""
+    # if not type(variants) == dict:
+    #     print("Input must be a dictionary")
+    #     return
+    output = open(outfile, "a+")
+    if not os.path.exists(outfile):
+        output.write("POS\tREF\tALT\n")  # header same for all
+    for k, v in variants.items():
+        output.write(str(v))
+    if close:
+        output.close()
