@@ -14,6 +14,7 @@ def process_region(chr_num):
     for variant in vcf(chr_num):
         if is_quality_variant(variant):
             variant_positions[variant.POS] = Variant(variant.REF, "".join(variant.ALT), variant.POS, variant.CHROM)
+    print("Done processing chromosome " + str(chr_num))
     return variant_positions
 
 
@@ -37,6 +38,7 @@ def parallel_variant(vcf_fpath, nthreads=0, outfile='variants_samp.csv'):
         for k, v in dic.items():
             output.write(str(v))
     output.close()
+    print("Done reading VCF file.")
 
 # if __name__ == "__main__":
 #     parallel_variant()

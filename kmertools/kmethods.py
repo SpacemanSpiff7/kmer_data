@@ -1,4 +1,5 @@
 import os
+import sys
 import random
 from collections import Counter, defaultdict
 import pandas as pd
@@ -74,7 +75,9 @@ def find_ref_kmer_freq(kmer_length):
         return df
     counts = Counter()
     ref_genome = Fasta('/Users/simonelongo/too_big_for_icloud/REFERENCE_GENOME_GRch37.fa')
-    ref_seq = str(ref_genome["22"])
+    ref_seq = ""
+    for chrom in REF_GENOME.keys():
+        ref_seq += str(ref_genome[chrom])
     for i in range(len(ref_seq) - (kmer_length - 1)):  # This takes the (1-based) reference sequence for chromosome 22
         next_seq = ref_seq[i:(i + kmer_length)]
         if not ('N' in next_seq or 'n' in next_seq):
@@ -135,8 +138,34 @@ def get_variants(filepath):
 
 def process_variants(variants, kmer_size):
     if not kmer_size % 2 == 1:
-        kmer_size += 1  # kmer size must be an odd number
-    fa = Fasta('/Users/simonelongo/too_big_for_icloud/REFERENCE_GENOME_GRch37.fa')
+        kmer_size += 1  # kmer size must be an odd number.
+    if not isinstance(variants, pd.DataFrame):
+        print("Reading variant file.")
+        variants_df = pd.read_csv(variants, sep='\t', low_memory=False)
+    ref = Fasta('/Users/simonelongo/too_big_for_icloud/REFERENCE_GENOME_GRch37.fa')
+    transitions = defaultdict(Counter)
+    start_idx_offset = int(kmer_size / 2 + 1)
+    kmer_mid_idx = int(start_idx_offset - 1)  # also halfway index for kmer
+    print("Processing variant file")
+    width = 40
+    setup_progressbar(toolbar_width=width)
+    df_prog_inc = int(len(variants_df) / width)
+    for idx, row in variants_df.iterrows():
+        if idx % df_prog_inc == 0:
+            sys.stdout.write("-")
+            sys.stdout.flush()
+        position = row['POS']
+        # take 7mer around variant. pyfaidx excludes start index and includes end index
+        adj_seq = ref[str(row['CHROM'])][(position - start_idx_offset):(position + kmer_mid_idx)].seq
+        if complete_sequence(adj_seq):
+            transitions[adj_seq][row['ALT']] += 1
+    sys.stdout.write("]\n")  # this ends the progress bar
+
+    count_fpath = "bp_counts_per" + str(kmer_size) + "mer.csv"
+    transitions_df = pd.DataFrame.from_dict(transitions, orient='index')
+    # merged_df = pd.merge(transitions_df, find_ref_kmer_freq(kmer_size), left_index=True, right_index=True, how='inner')
+    transitions_df.to_csv(count_fpath)
+    return transitions_df
 
 
 def generate_csv_from_variants(variants, outfile="variants_samp.csv", close=False):
@@ -151,3 +180,17 @@ def generate_csv_from_variants(variants, outfile="variants_samp.csv", close=Fals
         output.write(str(v))
     if close:
         output.close()
+
+
+def generate_heatmap(transitions, kmer_length):
+    kmer_freq = find_ref_kmer_freq(kmer_length)
+    merged = transitions.join(kmer_freq, how='inner')
+    # TODO: implement
+
+
+def setup_progressbar(toolbar_width=40):
+    """taken from: https://stackoverflow.com/questions/3160699/python-progress-bar"""
+    # setup toolbar
+    sys.stdout.write("[%s]" % (" " * toolbar_width))
+    sys.stdout.flush()
+    sys.stdout.write("\b" * (toolbar_width + 1))  # return to start of line, after '['
