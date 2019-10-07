@@ -3,6 +3,7 @@ import sys
 import argparse
 
 
+# /scratch/general/lustre/u0319040/ref_genome/gnomad.genomes.r2.1.1.sites.vcf.bgz
 def main():
     if vcf_path is not None:
         km.parallel_variant(vcf_path, nthreads=nthreads, outfile=o_file)
@@ -13,7 +14,8 @@ def main():
         else:
             print('No input file to work from, please reevaluate arguments.')
             exit(1)
-        var_counts = km.process_variants(var_path, kmer_len)  # Pandas dataframe
+        var_counts = km.process_variants(var_path, kmer_len, fasta_path)  # Pandas dataframe
+        km.find_ref_kmer_freq(kmer_len, fasta_path)
     return True
 
 
@@ -25,6 +27,9 @@ if __name__ == "__main__":
                         help='Enter path to VCF file or CSV file containing variants', default=None)
     parser.add_argument('--variant-csv', '-cf', action='store', dest='csv_var_fpath',
                         help='Enter filepath for CSV file containing variants if available', default=None)
+    parser.add_argument('--reference-genome', '-rg', action='store', dest='ref_fasta',
+                        help='Enter path to reference genome fasta file',
+                        default='/Users/simonelongo/too_big_for_icloud/REFERENCE_GENOME_GRch37.fa')
     parser.add_argument('--kmer-len', '-k', action='store', dest='kmer_length', help='Enter length of Kmer', default=0)
     parser.add_argument('--output', '-o', action='store', dest='output_file', help='Enter desired output file name',
                         default='variants_samp.csv')
@@ -38,6 +43,7 @@ if __name__ == "__main__":
         kmer_len = int(args.kmer_length)
         o_file = args.output_file
         csv_fpath = args.csv_var_fpath
+        fasta_path = args.ref_fasta
     except ValueError:
         print("Invalid parameters. Exiting...")
         exit(1)

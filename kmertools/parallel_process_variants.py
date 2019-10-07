@@ -1,5 +1,4 @@
 from collections import defaultdict
-import psutil
 import multiprocessing as mp
 from cyvcf2 import VCF
 from kmertools import REF_GENOME, is_quality_variant, generate_csv_from_variants
@@ -28,7 +27,7 @@ def run_process(nthreads):
 
 def parallel_variant(vcf_fpath, nthreads=0, outfile='variants_samp.csv'):
     if nthreads == 0:
-        nthreads = psutil.cpu_count(logical=False)
+        nthreads = mp.cpu_count(logical=False)
     global vcf_path
     vcf_path = vcf_fpath
     results = run_process(nthreads)

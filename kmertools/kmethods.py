@@ -65,7 +65,7 @@ def generate_kmers(k):
     return seqs
 
 
-def find_ref_kmer_freq(kmer_length):
+def find_ref_kmer_freq(kmer_length, ref_fasta):
     """Count of occurrences of each kmer on the reference genome"""
     expected_path = 'data/chr22_' + str(kmer_length) + 'mer_frequency.csv'
     col_names = ['ref_count']
@@ -74,7 +74,7 @@ def find_ref_kmer_freq(kmer_length):
         print('Reference kmer frequency successfully read.')
         return df
     counts = Counter()
-    ref_genome = Fasta('/Users/simonelongo/too_big_for_icloud/REFERENCE_GENOME_GRch37.fa')
+    ref_genome = Fasta(ref_fasta)
     ref_seq = ""
     for chrom in REF_GENOME.keys():
         ref_seq += str(ref_genome[chrom])
@@ -136,13 +136,13 @@ def get_variants(filepath):
     return variant_positions
 
 
-def process_variants(variants, kmer_size):
+def process_variants(variants, kmer_size, ref_fasta):
     if not kmer_size % 2 == 1:
         kmer_size += 1  # kmer size must be an odd number.
     if not isinstance(variants, pd.DataFrame):
         print("Reading variant file.")
         variants_df = pd.read_csv(variants, sep='\t', low_memory=False)
-    ref = Fasta('/Users/simonelongo/too_big_for_icloud/REFERENCE_GENOME_GRch37.fa')
+    ref = Fasta(ref_fasta)
     transitions = defaultdict(Counter)
     start_idx_offset = int(kmer_size / 2 + 1)
     kmer_mid_idx = int(start_idx_offset - 1)  # also halfway index for kmer
