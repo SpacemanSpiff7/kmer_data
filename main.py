@@ -11,6 +11,9 @@ if __name__ == "__main__":
     parser.add_argument('--kmer-len', '-k', action='store', dest='kmer_length', help='Enter length of Kmer', default=3)
     parser.add_argument('--output', '-o', action='store', dest='output_file', help='Enter desired output file name',
                         default='variants_samp.csv')
+    if len(sys.argv) == 1:
+        parser.print_help(sys.stderr)
+        sys.exit(1)
     args = parser.parse_args()
     try:
         nthreads = int(args.N_THREADS)
@@ -19,5 +22,6 @@ if __name__ == "__main__":
         o_file = args.output_file
     except ValueError:
         print("Invalid parameters. Exiting...")
-        exit(0)
+        exit(1)
+
     parallel_variant(vcf_path, nthreads=nthreads, outfile=o_file)
