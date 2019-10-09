@@ -1,4 +1,3 @@
-from kmertools.kmethods import get_complementary_sequence
 
 
 class Variant:
@@ -55,6 +54,7 @@ class Variant:
 
 class Kmer:
     def __init__(self, sequence):
+        from kmertools.kmethods import get_complementary_sequence
         self.sequence = sequence
         self.complement = get_complementary_sequence(sequence)
         if self.complement < self.sequence:
@@ -82,3 +82,21 @@ class Kmer:
 
     def __gt__(self, other):
         return other.sequence > self.sequence
+
+
+class VCFRegion:
+    def __init__(self, chrom, start, stop):
+        self.region = [chrom, start, stop]
+
+    # def add(self, chrom, start, stop):
+    #     if chrom in self.regions.keys():
+    #         self.regions[chrom][1] = stop
+
+    def size(self):
+        return self.region[2] - self.region[1]
+
+    def __str__(self):
+        return str(self.region[0]) + ':' + str(self.region[1]) + '-' + str(self.region[2])
+
+    def __repr__(self):
+        return str(self)

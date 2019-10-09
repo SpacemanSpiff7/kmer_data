@@ -25,9 +25,10 @@ def run_process(nthreads):
     return results
 
 
-def parallel_variant(vcf_fpath, nthreads=0, outfile='variants_samp.csv'):
+def parallel_VCF_read(vcf_fpath, nthreads=0, outfile='variants_samp.csv'):
+    # TODO: split up VCF into equal parts
     if nthreads == 0:
-        nthreads = mp.cpu_count(logical=False)
+        nthreads = mp.cpu_count()
     global vcf_path
     vcf_path = vcf_fpath
     results = run_process(nthreads)

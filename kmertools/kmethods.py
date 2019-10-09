@@ -3,10 +3,12 @@ import sys
 import random
 from collections import Counter, defaultdict
 import pandas as pd
+import multiprocessing as mp
+import numpy as np
 from pyfaidx import Fasta
 from cyvcf2 import VCF, Writer
 import itertools
-
+from kmertools import Variant
 from kmertools.constants import REF_GENOME
 
 
@@ -136,7 +138,8 @@ def get_variants(filepath):
     return variant_positions
 
 
-def process_variants(variants, kmer_size, ref_fasta):
+def process_variants_old(variants, kmer_size, ref_fasta):
+    print('This method has been deprecated... for now.')
     if not kmer_size % 2 == 1:
         kmer_size += 1  # kmer size must be an odd number.
     if not isinstance(variants, pd.DataFrame):
@@ -182,6 +185,19 @@ def generate_csv_from_variants(variants, outfile="variants_samp.csv", close=Fals
         output.close()
 
 
+def split_pandas_rows(df):
+    """Taken from https://stackoverflow.com/questions/40357434/pandas-df-iterrows-parallelization"""
+    # create as many processes as there are CPUs on your machine
+    num_processes = mp.cpu_count()
+
+    # calculate the chunk size as an integer
+    chunk_size = int(df.shape[0] / num_processes)
+
+    # this solution was reworked from the above link.
+    # will work even if the length of the dataframe is not evenly divisible by num_processes
+    chunks = [df.ix[df.index[i:i + chunk_size]] for i in range(0, df.shape[0], chunk_size)]
+
+
 def generate_heatmap(transitions, kmer_length):
     kmer_freq = find_ref_kmer_freq(kmer_length)
     merged = transitions.join(kmer_freq, how='inner')
@@ -194,3 +210,84 @@ def setup_progressbar(toolbar_width=40):
     sys.stdout.write("[%s]" % (" " * toolbar_width))
     sys.stdout.flush()
     sys.stdout.write("\b" * (toolbar_width + 1))  # return to start of line, after '['
+
+
+def process_vcf_region(vcf_path, regions):
+    vcf = VCF(vcf_path)
+    variant_positions = defaultdict(Variant)
+    for region in regions:
+        for variant in vcf(str(region)):
+            if is_quality_variant(variant):
+                variant_positions[variant.POS] = Variant(variant.REF, "".join(variant.ALT), variant.POS, variant.CHROM)
+    print("VCF chunk processed")
+    return variant_positions
+
+
+def run_vcf_parallel(vcf_path, nprocs):
+    regions = get_split_vcf_regions(vcf_path, nprocs)
+    pool = mp.Pool(nprocs)
+    args = [(vcf_path, region) for region in regions]
+    results = [funccall.get() for funccall in [pool.starmap_async(process_vcf_region, args)]]
+    pool.close()
+    return results
+
+
+def vcf_parallel(vcf_path, nprocs, outfile='genome_variants_agg.csv'):
+    if nprocs == 0:
+        nprocs = mp.cpu_count()
+    results = run_vcf_parallel(vcf_path, nprocs)
+    output = open(outfile, "a+")
+    output.write("CHROM\tPOS\tREF\tALT\n")  # header same for all
+    for dic in results[0]:
+        for k, v in dic.items():
+            output.write(str(v))
+    output.close()
+    print("Done reading VCF file.")
+
+
+def get_split_vcf_regions(vcf_path, nprocs):
+    vcf = VCF(vcf_path)
+    from kmertools import VCFRegion
+    num_entries = np.sum(vcf.seqlens)
+    chunk_size = int(num_entries / nprocs) + 1
+    num_chunk = 0
+    regions = []
+    gen_pos = 0
+    current_chromosome = 0
+    chrom_pos = 0
+    while num_chunk < nprocs and current_chromosome < len(vcf.seqnames):
+        current_chunk = 0
+        region = []
+        while current_chunk < chunk_size:
+            if current_chromosome >= len(vcf.seqnames):
+                current_chunk = chunk_size
+                continue
+            remaining_chunk = chunk_size - current_chunk
+            if remaining_chunk <= (vcf.seqlens[current_chromosome] - chrom_pos):
+                new_region = VCFRegion(vcf.seqnames[current_chromosome], chrom_pos, chrom_pos + remaining_chunk)
+                region.append(new_region)
+                chrom_pos += remaining_chunk
+                current_chunk += new_region.size()
+                gen_pos += new_region.size()
+                continue
+            else:  # remaining chunk can fit remainder of chromosome and then some
+                new_region = VCFRegion(vcf.seqnames[current_chromosome], chrom_pos, vcf.seqlens[current_chromosome])
+                region.append(new_region)
+                current_chunk += new_region.size()
+                gen_pos += new_region.size()
+                chrom_pos = 0
+                current_chromosome += 1
+        regions.append(region)
+    # print(regions)
+    return regions
+    # print("Genome position: " + str(gen_pos))
+    # print("Genome length: " + str(num_entries))
+    # now return vcf generators to use for querying
+    # vcf_regions = []
+    # for r in regions:
+    #     current = []
+    #     for chunk in r:
+    #         current.append(vcf(str(chunk)))
+    #     vcf_regions.append(current)
+    # # print(vcf_regions)
+    # return vcf_regions
