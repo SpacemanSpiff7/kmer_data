@@ -8,8 +8,15 @@ import numpy as np
 from pyfaidx import Fasta
 from cyvcf2 import VCF, Writer
 import itertools
-from kmertools import Variant
-from kmertools.constants import REF_GENOME
+from kmertools import Variant, Storage
+from kmertools.constants import REF_GENOME, REF_FASTA_PATH
+
+
+def gen_random_sequence(length):
+    seq = ""
+    for i in range(length):
+        seq += random.choice('ACTG')
+    return seq
 
 
 def append_variants_to_vcf(chrom, start, stop):
@@ -223,11 +230,32 @@ def process_vcf_region(vcf_path, regions):
     return variant_positions
 
 
+def process_vcf_region2(vcf_path, regions, kmer_size=3):
+    vcf = VCF(vcf_path)
+    #variant_positions = defaultdict(Variant)
+    ref = Fasta(REF_FASTA_PATH)
+    transitions = defaultdict(Counter)
+    start_idx_offset = int(kmer_size / 2 + 1)
+    kmer_mid_idx = int(start_idx_offset - 1)  # also halfway index for kmer
+    for region in regions:
+        for variant in vcf(str(region)):
+            if is_quality_variant(variant):
+                new_var = Variant(variant.REF, "".join(variant.ALT), variant.POS, variant.CHROM)
+                # take 7mer around variant. pyfaidx excludes start index and includes end index
+                adj_seq = ref[str(variant.CHROM)][(variant.POS - start_idx_offset):(variant.POS + kmer_mid_idx)].seq
+                if complete_sequence(adj_seq):
+                    transitions[adj_seq][variant.ALT] += 1
+    print("VCF chunk processed")
+    # TODO: FIXME:  tuple/lists not hashable. Need 2 return values or 2 fn calls
+    #               Turn this method into csv generator and have another for reading
+    return transitions
+
+
 def run_vcf_parallel(vcf_path, nprocs):
     regions = get_split_vcf_regions(vcf_path, nprocs)
     pool = mp.Pool(nprocs)
     args = [(vcf_path, region) for region in regions]
-    results = [funccall.get() for funccall in [pool.starmap_async(process_vcf_region, args)]]
+    results = [funccall.get() for funccall in [pool.starmap_async(process_vcf_region2, args)]]
     pool.close()
     return results
 
@@ -238,11 +266,17 @@ def vcf_parallel(vcf_path, nprocs, outfile='genome_variants_agg.csv'):
     results = run_vcf_parallel(vcf_path, nprocs)
     output = open(outfile, "a+")
     output.write("CHROM\tPOS\tREF\tALT\n")  # header same for all
-    for dic in results[0]:
-        for k, v in dic.items():
+    transitions_list = []
+    for result in results[0]:
+        for k, v in result.items():
             output.write(str(v))
+        # transitions_list.append(result.get_transitions())
+        # for k, v in result.get_positions():
+        #     output.write(str(v))
     output.close()
     print("Done reading VCF file.")
+    # return transitions_list
+    return str(results)
 
 
 def get_split_vcf_regions(vcf_path, nprocs):

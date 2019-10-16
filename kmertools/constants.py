@@ -23,4 +23,4 @@ REF_GENOME = dict({'1': 249250621,
                    'X': 155270560,
                    'Y': 59373566})
 
-
+REF_FASTA_PATH = "/Users/simonelongo/too_big_for_icloud/ref_genome/REFERENCE_GENOME_GRch37.fa"

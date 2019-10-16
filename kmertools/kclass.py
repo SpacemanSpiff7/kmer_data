@@ -1,3 +1,4 @@
+from collections import defaultdict, Counter
 
 
 class Variant:
@@ -100,3 +101,35 @@ class VCFRegion:
 
     def __repr__(self):
         return str(self)
+
+    def __hash__(self):
+        return hash(str(self))
+
+
+class Storage:
+    def __init__(self, *args, **kwargs):
+        self.items = []
+        self.name = args[1]
+        for i in range(2, len(args)):
+            self.items.append(i)
+
+    def __hash__(self):
+        return hash(self.name + str(len(self.items)))
+
+    def __lt__(self, other):
+        return hash(self) - hash(other)
+
+    def __eq__(self, other):
+        return hash(self) == hash(other)
+
+    def get_positions(self):
+        for i in self.items:
+            if isinstance(i, defaultdict(Variant)):
+                return i
+        return False
+
+    def get_transitions(self):
+        for i in self.items:
+            if isinstance(i, defaultdict(Counter)):
+                return i
+        return False

@@ -6,16 +6,17 @@ import argparse
 # /scratch/general/lustre/u0319040/ref_genome/gnomad.genomes.r2.1.1.sites.vcf.bgz
 def main():
     if vcf_path is not None:
-        km.parallel_VCF_read(vcf_path, nthreads=nthreads, outfile=o_file)
+        #km.parallel_VCF_read(vcf_path, nthreads=nthreads, outfile=o_file)
+        km.vcf_parallel(vcf_path, nthreads, outfile=o_file)
         var_path = o_file
     if kmer_len > 0:
         if vcf_path is None and csv_fpath is not None:
-            var_path = csv_fpath
+            var_path = csv_fpath  # CSV is then read appropriately in 'process variants'
         else:
             print('No input file to work from, please reevaluate arguments.')
             exit(1)
-        var_counts = km.process_variants_old(var_path, kmer_len, fasta_path)  # Pandas dataframe
-        km.find_ref_kmer_freq(kmer_len, fasta_path)
+        # var_counts = km.process_variants_old(var_path, kmer_len, fasta_path)  # Pandas data frame
+        # km.find_ref_kmer_freq(kmer_len, fasta_path)
     return True
 
 
