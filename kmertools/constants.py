@@ -33,8 +33,10 @@ KMER_SIZE = 3
 def set_kmer_size(length):
     global KMER_SIZE
     KMER_SIZE = length
+    return
 
 
 def set_vcf_path(path):
     global VCF_PATH
     VCF_PATH = path
+    return
