@@ -1,7 +1,7 @@
 from distutils.core import setup
 
 setup(
-    name='TowelStuff',
+    name='kmertools',
     version='0.1.0',
     author='Simone Longo',
     author_email='s.longo@utah.edu',
