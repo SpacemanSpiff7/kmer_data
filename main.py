@@ -5,6 +5,8 @@ import argparse
 
 # /scratch/general/lustre/u0319040/ref_genome/gnomad.genomes.r2.1.1.sites.vcf.bgz
 def main():
+    if fasta_path is not None:
+        km.REF_FASTA_PATH = fasta_path
     if vcf_path is not None:
         km.VCF_PATH = vcf_path
         if kmer_len > 0 and kmer_len != km.constants.KMER_SIZE:
