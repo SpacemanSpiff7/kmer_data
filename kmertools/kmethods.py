@@ -301,8 +301,9 @@ def vcf_parallel(vcf_path, nprocs, outfile='genome_variants_agg.csv'):
         else:
             transitions_list.append(result[0])
     output.close()
+    print(outfile + " saved.")
     print("Done reading VCF file.")
-    return transitions_list
+    return merge_defaultdict(transitions_list)
     # return str(results)
 
 

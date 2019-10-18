@@ -8,7 +8,7 @@ setup(
     packages=['kmertools'],
     license='LICENSE.txt',
     description='Tools for processing VCF files in parallel in addition to k-mer search and analysis',
-    long_description=open('README.md').read(),
+    long_description=open('README.rst').read(),
     install_requires=[
         "pyfaidx",
         "cyvcf2",
