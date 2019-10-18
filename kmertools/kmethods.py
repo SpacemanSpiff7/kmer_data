@@ -274,12 +274,12 @@ def process_vcf_region2(regions, kmer_size=constants.KMER_SIZE):
                 if complete_sequence(adj_seq):
                     transitions[adj_seq][variant.ALT[0]] += 1
     print("VCF chunk processed")
-    # TODO: FIXME:  tuple/lists not hashable. Need 2 return values or 2 fn calls
-    #               Turn this method into csv generator and have another for reading
     return [transitions, variant_positions]
 
 
 def run_vcf_parallel(vcf_path, nprocs):
+    if constants.VCF_PATH != vcf_path:
+        constants.VCF_PATH = vcf_path
     regions = get_split_vcf_regions(vcf_path, nprocs)
     pool = mp.Pool(nprocs)
     results = [funccall.get() for funccall in [pool.map_async(process_vcf_region2, regions)]]
@@ -287,7 +287,7 @@ def run_vcf_parallel(vcf_path, nprocs):
     return results
 
 
-def vcf_parallel(vcf_path, nprocs, outfile='genome_variants_agg.csv'):
+def vcf_parallel(vcf_path, nprocs, outfile='genome_variants_agg.csv', store=True):
     if nprocs == 0:
         nprocs = mp.cpu_count()
     results = run_vcf_parallel(vcf_path, nprocs)
@@ -303,8 +303,12 @@ def vcf_parallel(vcf_path, nprocs, outfile='genome_variants_agg.csv'):
     output.close()
     print(outfile + " saved.")
     print("Done reading VCF file.")
-    return merge_defaultdict(transitions_list)
-    # return str(results)
+    merged_dict = merge_defaultdict(transitions_list)
+    if store:
+        count_fpath = "bp_counts_per" + str(constants.KMER_SIZE) + "mer.csv"
+        transitions_df = pd.DataFrame.from_dict(merged_dict, orient='index')
+        transitions_df.to_csv(count_fpath)
+    return merged_dict
 
 
 def get_split_vcf_regions(vcf_path, nprocs):
