@@ -105,6 +105,9 @@ class VCFRegion:
     def __hash__(self):
         return hash(str(self))
 
+    def __eq__(self, other):
+        return str(other) == str(self)
+
 
 class Storage:
     def __init__(self, *args, **kwargs):

@@ -8,15 +8,37 @@ import numpy as np
 from pyfaidx import Fasta
 from cyvcf2 import VCF, Writer
 import itertools
-from kmertools import Variant, Storage
+from kmertools import Variant, Storage, constants
 from kmertools.constants import REF_GENOME, REF_FASTA_PATH
 
 
+def ran_seq(chunk):
+    sequence = ""
+    for i in range(chunk):
+        sequence += random.choice('ACTG')
+    return sequence
+
+
 def gen_random_sequence(length):
-    seq = ""
-    for i in range(length):
-        seq += random.choice('ACTG')
-    return seq
+    pool = mp.Pool()
+    nprocs = mp.cpu_count()
+    chunk_size = int(length / nprocs) + 1
+    args = []
+    tot = chunk_size
+    while tot <= length:
+        args.append(chunk_size)
+        tot += chunk_size
+    new_tot = np.array(args).sum()
+    if new_tot < length:
+        args.append(length - new_tot)
+    print(args)
+
+    results = [funccall.get() for funccall in [pool.map_async(ran_seq, args)]]
+    pool.close()
+    random_seq = ""
+    for seq in results[0]:
+        random_seq += seq
+    return random_seq
 
 
 def append_variants_to_vcf(chrom, start, stop):
@@ -230,32 +252,37 @@ def process_vcf_region(vcf_path, regions):
     return variant_positions
 
 
-def process_vcf_region2(vcf_path, regions, kmer_size=3):
-    vcf = VCF(vcf_path)
-    #variant_positions = defaultdict(Variant)
+def process_vcf_region2(regions, kmer_size=constants.KMER_SIZE):
+    """
+    Process VCF Regions 2: Electric Boogaloo
+        Returns a list of variants and the transitions in one sweep. That's wassup!
+    """
+    vcf = VCF(constants.VCF_PATH)
+    # variant_positions = defaultdict(Variant)
     ref = Fasta(REF_FASTA_PATH)
     transitions = defaultdict(Counter)
+    variant_positions = defaultdict(Variant)
     start_idx_offset = int(kmer_size / 2 + 1)
     kmer_mid_idx = int(start_idx_offset - 1)  # also halfway index for kmer
     for region in regions:
         for variant in vcf(str(region)):
             if is_quality_variant(variant):
                 new_var = Variant(variant.REF, "".join(variant.ALT), variant.POS, variant.CHROM)
+                variant_positions[variant.POS] = new_var
                 # take 7mer around variant. pyfaidx excludes start index and includes end index
                 adj_seq = ref[str(variant.CHROM)][(variant.POS - start_idx_offset):(variant.POS + kmer_mid_idx)].seq
                 if complete_sequence(adj_seq):
-                    transitions[adj_seq][variant.ALT] += 1
+                    transitions[adj_seq][variant.ALT[0]] += 1
     print("VCF chunk processed")
     # TODO: FIXME:  tuple/lists not hashable. Need 2 return values or 2 fn calls
     #               Turn this method into csv generator and have another for reading
-    return transitions
+    return [transitions, variant_positions]
 
 
 def run_vcf_parallel(vcf_path, nprocs):
     regions = get_split_vcf_regions(vcf_path, nprocs)
     pool = mp.Pool(nprocs)
-    args = [(vcf_path, region) for region in regions]
-    results = [funccall.get() for funccall in [pool.starmap_async(process_vcf_region2, args)]]
+    results = [funccall.get() for funccall in [pool.map_async(process_vcf_region2, regions)]]
     pool.close()
     return results
 
@@ -268,15 +295,15 @@ def vcf_parallel(vcf_path, nprocs, outfile='genome_variants_agg.csv'):
     output.write("CHROM\tPOS\tREF\tALT\n")  # header same for all
     transitions_list = []
     for result in results[0]:
-        for k, v in result.items():
-            output.write(str(v))
-        # transitions_list.append(result.get_transitions())
-        # for k, v in result.get_positions():
-        #     output.write(str(v))
+        if isinstance(list(result[0].values())[0], Variant):
+            for k, v in result.items():
+                output.write(str(v))
+        else:
+            transitions_list.append(result[0])
     output.close()
     print("Done reading VCF file.")
-    # return transitions_list
-    return str(results)
+    return transitions_list
+    # return str(results)
 
 
 def get_split_vcf_regions(vcf_path, nprocs):
@@ -314,14 +341,12 @@ def get_split_vcf_regions(vcf_path, nprocs):
         regions.append(region)
     # print(regions)
     return regions
-    # print("Genome position: " + str(gen_pos))
-    # print("Genome length: " + str(num_entries))
-    # now return vcf generators to use for querying
-    # vcf_regions = []
-    # for r in regions:
-    #     current = []
-    #     for chunk in r:
-    #         current.append(vcf(str(chunk)))
-    #     vcf_regions.append(current)
-    # # print(vcf_regions)
-    # return vcf_regions
+
+
+def merge_defaultdict(dict_list):
+    master_count = defaultdict(Counter)
+    for counts in dict_list:
+        for k, v in counts.items():
+            for alt, count in v.items():
+                master_count[k][alt] += count
+    return master_count

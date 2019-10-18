@@ -24,3 +24,17 @@ REF_GENOME = dict({'1': 249250621,
                    'Y': 59373566})
 
 REF_FASTA_PATH = "/Users/simonelongo/too_big_for_icloud/ref_genome/REFERENCE_GENOME_GRch37.fa"
+
+VCF_PATH = "/Users/simonelongo/Documents/QuinlanLabFiles/kmer_data/samp.vcf.bgz"
+
+KMER_SIZE = 3
+
+
+def set_kmer_size(length):
+    global KMER_SIZE
+    KMER_SIZE = length
+
+
+def set_vcf_path(path):
+    global VCF_PATH
+    VCF_PATH = path
