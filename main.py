@@ -5,6 +5,7 @@ import argparse
 
 # /scratch/general/lustre/u0319040/ref_genome/gnomad.genomes.r2.1.1.sites.vcf.bgz
 def main():
+    # TODO: Implement ref directory check
     if fasta_path is not None:
         km.REF_FASTA_PATH = fasta_path
     if vcf_path is not None:
@@ -33,6 +34,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--numthreads', '-N', action='store', dest='N_THREADS', help='Number of threads available',
                         default=4)
+    parser.add_argument('--ref-directory', '-rd', action='store', dest='ref_dir_path', default=None,
+                        help='Enter path to directory containing indexed VCF and Fasta files.')
     parser.add_argument('--vcf-path', '-v', action='store', dest='vcf_path',
                         help='Enter path to VCF file or CSV file containing variants', default=None)
     parser.add_argument('--variant-csv', '-t', action='store', dest='csv_var_fpath',
@@ -40,7 +43,7 @@ if __name__ == "__main__":
     parser.add_argument('--reference-genome', '-rg', action='store', dest='ref_fasta',
                         help='Enter path to reference genome fasta file',
                         default='/Users/simonelongo/too_big_for_icloud/REFERENCE_GENOME_GRch37.fa')
-    parser.add_argument('--kmer-len', '-k', action='store', dest='kmer_length', help='Enter length of Kmer', default=0)
+    parser.add_argument('--kmer-len', '-k', action='store', dest='kmer_length', help='Enter length of Kmer', default=3)
     parser.add_argument('--output', '-o', action='store', dest='output_file', help='Enter desired output file name',
                         default='variants_samp.csv')
     if len(sys.argv) == 1:
@@ -54,6 +57,7 @@ if __name__ == "__main__":
         o_file = args.output_file
         csv_fpath = args.csv_var_fpath
         fasta_path = args.ref_fasta
+        ref_dir = args.ref_dir_path
     except ValueError:
         print("Invalid parameters. Exiting...")
         exit(1)

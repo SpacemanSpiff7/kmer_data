@@ -8,7 +8,8 @@ import numpy as np
 from pyfaidx import Fasta
 from cyvcf2 import VCF, Writer
 import itertools
-from kmertools import Variant, Storage
+from kmertools import Variant, Storage, constants
+from kmertools.constants import REF_GENOME, REF_FASTA_PATH
 
 
 def ran_seq(chunk):
@@ -46,16 +47,15 @@ def append_variants_to_vcf(chrom, start, stop):
         stop) + " >> samp.vcf"
 
 
-# TODO: Fix so that reference is not used
-# def generate_sample_vcf(filename='/Users/simonelongo/too_big_for_icloud/gnomad.genomes.r2.1.1.sites.vcf.bgz'):
-#     """Takes a large VCF file and takes random samples from each chromosome to make a smaller VCF for testing"""
-#     vcf = VCF(filename)
-#     write = Writer('samp.vcf', vcf)
-#     write.write_header()
-#     for chrom_num, chrom_len in REF_GENOME:
-#         begin = random.randint(1000, chrom_len - 1000)
-#         os.system(append_variants_to_vcf(chrom_num, begin, begin + 1000))
-#     write.close()
+def generate_sample_vcf(filename='/Users/simonelongo/too_big_for_icloud/gnomad.genomes.r2.1.1.sites.vcf.bgz'):
+    """Takes a large VCF file and takes random samples from each chromosome to make a smaller VCF for testing"""
+    vcf = VCF(filename)
+    write = Writer('samp.vcf', vcf)
+    write.write_header()
+    for chrom_num, chrom_len in REF_GENOME:
+        begin = random.randint(1000, chrom_len - 1000)
+        os.system(append_variants_to_vcf(chrom_num, begin, begin + 1000))
+    write.close()
 
 
 def complement(c):
@@ -107,7 +107,7 @@ def find_ref_kmer_freq(kmer_length, ref_fasta):
     counts = Counter()
     ref_genome = Fasta(ref_fasta)
     ref_seq = ""
-    for chrom in ref_genome.keys():
+    for chrom in REF_GENOME.keys():
         ref_seq += str(ref_genome[chrom])
     for i in range(len(ref_seq) - (kmer_length - 1)):  # This takes the (1-based) reference sequence for chromosome 22
         next_seq = ref_seq[i:(i + kmer_length)]
@@ -121,19 +121,12 @@ def find_ref_kmer_freq(kmer_length, ref_fasta):
     return outfile
 
 
-def ref_genome_as_string(ref_fasta):
-    ref_genome = Fasta(ref_fasta)
-    ref_seq = ""
-    for chrom in ref_genome.keys():
-        ref_seq += str(ref_genome[chrom])
-    return ref_seq
-
-
 def is_vcf(f_path):
     """Returns True if filepath is a valid VCF file"""
     tokens = os.path.splitext(f_path)
-    allowed_extensions = ['.vcf', '.gz', '.bgz']
-    return tokens[1] in allowed_extensions
+    if tokens[1] == '.vcf' or tokens[1] == '.gz':
+        return True
+    return False
 
 
 def is_quality_variant(var_to_test):
@@ -259,64 +252,63 @@ def process_vcf_region(vcf_path, regions):
     return variant_positions
 
 
-# FIXME
-# def process_vcf_region2(regions, kmer_size=3):
-#     """
-#     Process VCF Regions 2: Electric Boogaloo
-#         Returns a list of variants and the transitions in one sweep. That's wassup!
-#     """
-#     vcf = VCF(constants.VCF_PATH)
-#     # variant_positions = defaultdict(Variant)
-#     ref = Fasta(REF_FASTA_PATH)
-#     transitions = defaultdict(Counter)
-#     variant_positions = defaultdict(Variant)
-#     start_idx_offset = int(kmer_size / 2 + 1)
-#     kmer_mid_idx = int(start_idx_offset - 1)  # also halfway index for kmer
-#     for region in regions:
-#         for variant in vcf(str(region)):
-#             if is_quality_variant(variant):
-#                 new_var = Variant(variant.REF, "".join(variant.ALT), variant.POS, variant.CHROM)
-#                 variant_positions[variant.POS] = new_var
-#                 # take 7mer around variant. pyfaidx excludes start index and includes end index
-#                 adj_seq = ref[str(variant.CHROM)][(variant.POS - start_idx_offset):(variant.POS + kmer_mid_idx)].seq
-#                 if complete_sequence(adj_seq):
-#                     transitions[adj_seq][variant.ALT[0]] += 1
-#     print("VCF chunk processed")
-#     return [transitions, variant_positions]
+def process_vcf_region2(regions, kmer_size=constants.KMER_SIZE):
+    """
+    Process VCF Regions 2: Electric Boogaloo
+        Returns a list of variants and the transitions in one sweep. That's wassup!
+    """
+    vcf = VCF(constants.VCF_PATH)
+    # variant_positions = defaultdict(Variant)
+    ref = Fasta(REF_FASTA_PATH)
+    transitions = defaultdict(Counter)
+    variant_positions = defaultdict(Variant)
+    start_idx_offset = int(kmer_size / 2 + 1)
+    kmer_mid_idx = int(start_idx_offset - 1)  # also halfway index for kmer
+    for region in regions:
+        for variant in vcf(str(region)):
+            if is_quality_variant(variant):
+                new_var = Variant(variant.REF, "".join(variant.ALT), variant.POS, variant.CHROM)
+                variant_positions[variant.POS] = new_var
+                # take 7mer around variant. pyfaidx excludes start index and includes end index
+                adj_seq = ref[str(variant.CHROM)][(variant.POS - start_idx_offset):(variant.POS + kmer_mid_idx)].seq
+                if complete_sequence(adj_seq):
+                    transitions[adj_seq][variant.ALT[0]] += 1
+    print("VCF chunk processed")
+    return [transitions, variant_positions]
 
 
-# def run_vcf_parallel(vcf_path, nprocs):
-#     if constants.VCF_PATH != vcf_path:
-#         constants.VCF_PATH = vcf_path
-#     regions = get_split_vcf_regions(vcf_path, nprocs)
-#     pool = mp.Pool(nprocs)
-#     results = [funccall.get() for funccall in [pool.map_async(process_vcf_region2, regions)]]
-#     pool.close()
-#     return results
+def run_vcf_parallel(vcf_path, nprocs):
+    if constants.VCF_PATH != vcf_path:
+        constants.VCF_PATH = vcf_path
+    regions = get_split_vcf_regions(vcf_path, nprocs)
+    pool = mp.Pool(nprocs)
+    results = [funccall.get() for funccall in [pool.map_async(process_vcf_region2, regions)]]
+    pool.close()
+    return results
 
 
-# def vcf_parallel(vcf_path, nprocs, outfile='genome_variants_agg.csv', store=True):
-#     if nprocs == 0:
-#         nprocs = mp.cpu_count()
-#     results = run_vcf_parallel(vcf_path, nprocs)
-#     output = open(outfile, "a+")
-#     output.write("CHROM\tPOS\tREF\tALT\n")  # header same for all
-#     transitions_list = []
-#     for result in results[0]:
-#         if isinstance(list(result[0].values())[0], Variant):
-#             for k, v in result.items():
-#                 output.write(str(v))
-#         else:
-#             transitions_list.append(result[0])
-#     output.close()
-#     print(outfile + " saved.")
-#     print("Done reading VCF file.")
-#     merged_dict = merge_defaultdict(transitions_list)
-#     if store:
-#         count_fpath = "bp_counts_per" + str(constants.KMER_SIZE) + "mer.csv"
-#         transitions_df = pd.DataFrame.from_dict(merged_dict, orient='index')
-#         transitions_df.to_csv(count_fpath)
-#     return merged_dict
+def vcf_parallel(vcf_path, nprocs, outfile='genome_variants_agg.csv', store=True):
+    if nprocs == 0:
+        nprocs = mp.cpu_count()
+    results = run_vcf_parallel(vcf_path, nprocs)
+    output = open(outfile, "a+")
+    output.write("CHROM\tPOS\tREF\tALT\n")  # header same for all
+    transitions_list = []
+    for result in results[0]:
+        if isinstance(list(result[0].values())[0], Variant):
+            for k, v in result.items():
+                output.write(str(v))
+        else:
+            transitions_list.append(result[0])
+    output.close()
+    print(outfile + " saved.")
+    print("Done reading VCF file.")
+    merged_dict = merge_defaultdict(transitions_list)
+    if store:
+        count_fpath = "bp_counts_per" + str(constants.KMER_SIZE) + "mer.csv"
+        transitions_df = pd.DataFrame.from_dict(merged_dict, orient='index')
+        transitions_df.to_csv(count_fpath)
+    return merged_dict
 
 
 def get_split_vcf_regions(vcf_path, nprocs):
