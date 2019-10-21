@@ -49,17 +49,19 @@ def vcf_singleton_analysis(vcf_path, ref_fasta, kmer_length, nprocs=0, var_out_f
     REF_FASTA = ref_fasta
     KMER_SIZE = kmer_length
     if kt.is_vcf(vcf_path):
-        output = open(var_out_file, "a+")
-        output.write("CHROM\tPOS\tREF\tALT\n")  # header same for all
         transitions_list = []
         VCF_PATH = vcf_path
         results = run_vcf_analysis(nprocs)
+
+        output = open(var_out_file, "a+")
+        output.write("CHROM\tPOS\tREF\tALT\n")  # header same for all
         for result in results[0]:
-            if isinstance(list(result[0].values())[0], kt.Variant):
-                for k, v in result.items():
-                    output.write(str(v))
-            else:
-                transitions_list.append(result[0])
+            for collection in result:
+                if isinstance(list(collection.values())[0], kt.Variant):
+                    for k, v in collection.items():
+                        output.write(str(v))
+                else:
+                    transitions_list.append(collection)
         output.close()
         merged_dict = kt.merge_defaultdict(transitions_list)
         if store:
