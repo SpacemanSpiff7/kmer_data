@@ -346,16 +346,17 @@ def get_split_vcf_regions(vcf_path, nprocs):
     from kmertools import VCFRegion
     num_entries = np.sum(vcf.seqlens)
     chunk_size = int(num_entries / nprocs) + 1
+    names = get_primary_chroms(vcf_path)
     num_chunk = 0
     regions = []
     gen_pos = 0
     current_chromosome = 0
     chrom_pos = 0
-    while num_chunk < nprocs and current_chromosome < len(vcf.seqnames):
+    while num_chunk < nprocs and current_chromosome < len(names):
         current_chunk = 0
         region = []
         while current_chunk < chunk_size:
-            if current_chromosome >= len(vcf.seqnames):
+            if current_chromosome >= len(names):
                 current_chunk = chunk_size
                 continue
             remaining_chunk = chunk_size - current_chunk
