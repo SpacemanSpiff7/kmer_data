@@ -1,8 +1,10 @@
 import kmertools as km
+from kmertools import GenVCF
 from kmertools.workflows import vcf_process
 import sys
 import argparse
 import time
+import os
 
 
 # /scratch/general/lustre/u0319040/ref_genome/gnomad.genomes.r2.1.1.sites.vcf.bgz
@@ -35,7 +37,8 @@ def main():
 if __name__ == "__main__":
     start = time.time()
     parser = argparse.ArgumentParser()
-    parser.add_argument('--singleton-flow', '-fs', action='store', dest='workflow_singleton', default=None)
+    parser.add_argument('--destination', '-df', action='store', dest='destination_dir', default=os.getcwd())
+    parser.add_argument('--fullscan', '-fs', action='store', dest='full_scan', default=None)
     parser.add_argument('--numthreads', '-N', action='store', dest='N_THREADS', help='Number of threads available',
                         default=4)
     parser.add_argument('--ref-directory', '-rd', action='store', dest='ref_dir_path', default=None,
@@ -55,7 +58,8 @@ if __name__ == "__main__":
         sys.exit(1)
     args = parser.parse_args()
     try:
-        is_wkflow = args.workflow_singleton is not None
+        destination_directory = args.destination_dir
+        is_wkflow = args.full_scan is not None
         nthreads = int(args.N_THREADS)
         vcf_path = args.vcf_path
         kmer_len = int(args.kmer_length)
@@ -67,7 +71,10 @@ if __name__ == "__main__":
         print("Invalid parameters. Exiting...")
         exit(1)
     if is_wkflow:
-        vcf_process.vcf_singleton_analysis(vcf_path, fasta_path, kmer_len, nprocs=nthreads, var_out_file=o_file)
+        gv = GenVCF(fasta_path, vcf_path, kmer_len, nthreads)
+        gv.set_destination(destination_directory)
+        gv.vcf_scan()
+        #vcf_process.vcf_singleton_analysis(vcf_path, fasta_path, kmer_len, nprocs=nthreads, var_out_file=o_file)
         print("Done in " + str(time.time() - start))
         exit(0)
-    main()
+    #main()

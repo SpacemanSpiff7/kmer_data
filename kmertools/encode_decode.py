@@ -1,4 +1,5 @@
 import multiprocessing as mp
+import time
 from collections import Counter
 
 
@@ -87,23 +88,4 @@ def convert_seq(sequence, encode=True):
         return decode_sequence(sequence)
 
 
-def kmer_search(sequence, kmer_length):
-    counts = Counter()
-    for i in range(len(sequence) - (kmer_length - 1)):  # This takes the (1-based) reference sequence for chromosome 22
-        next_seq = sequence[i:(i + kmer_length)]
-        if not ('N' in next_seq or 'n' in next_seq):
-            counts[next_seq] += 1
-    return counts
 
-
-def get_kmer_count(sequence, kmer_length):
-    args = split_seq(sequence, mp.cpu_count(), overlap=kmer_length)
-    args = [[seq, kmer_length] for seq in args]
-    pool = mp.Pool(mp.cpu_count())
-    results = [res.get() for res in [pool.starmap_async(kmer_search, args)]]
-    pool.close()
-    counts = Counter()
-    for result in results[0]:
-        for k, v in result.items():
-            counts[k] += v
-    return counts

@@ -1,7 +1,7 @@
 from collections import defaultdict
 import multiprocessing as mp
 from cyvcf2 import VCF
-from kmertools import is_quality_variant, generate_csv_from_variants
+from kmertools import is_quality_singleton, generate_csv_from_variants
 from kmertools.kclass import Variant
 
 vcf_path = '../samp.vcf.bgz'
@@ -11,7 +11,7 @@ def process_region(chr_num):
     vcf = VCF(vcf_path)
     variant_positions = defaultdict(Variant)
     for variant in vcf(chr_num):
-        if is_quality_variant(variant):
+        if is_quality_singleton(variant):
             variant_positions[variant.POS] = Variant(variant.REF, "".join(variant.ALT), variant.POS, variant.CHROM)
     print("Done processing chromosome " + str(chr_num))
     return variant_positions

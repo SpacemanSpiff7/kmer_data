@@ -23,7 +23,7 @@ def process_region(region):
         print('Processing ' + str(section))
         start = time.time()
         for variant in vcf(str(section)):
-            if kt.is_quality_variant(variant):
+            if kt.is_quality_singleton(variant):
                 new_var = kt.Variant(variant.REF, "".join(variant.ALT), variant.POS, variant.CHROM)
                 variant_positions[variant.POS] = new_var
                 # take 7mer around variant. pyfaidx excludes start index and includes end index

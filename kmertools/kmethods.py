@@ -1,6 +1,7 @@
 import os
 import sys
 import random
+import time
 from collections import Counter, defaultdict
 import pandas as pd
 import multiprocessing as mp
@@ -8,7 +9,7 @@ import numpy as np
 from pyfaidx import Fasta
 from cyvcf2 import VCF, Writer
 import itertools
-from kmertools import Variant, Storage
+from kmertools import Variant, Storage, Kmer
 
 
 def ran_seq(chunk):
@@ -47,15 +48,15 @@ def append_variants_to_vcf(chrom, start, stop):
 
 
 # TODO: Fix so that reference is not used
-# def generate_sample_vcf(filename='/Users/simonelongo/too_big_for_icloud/gnomad.genomes.r2.1.1.sites.vcf.bgz'):
-#     """Takes a large VCF file and takes random samples from each chromosome to make a smaller VCF for testing"""
-#     vcf = VCF(filename)
-#     write = Writer('samp.vcf', vcf)
-#     write.write_header()
-#     for chrom_num, chrom_len in REF_GENOME:
-#         begin = random.randint(1000, chrom_len - 1000)
-#         os.system(append_variants_to_vcf(chrom_num, begin, begin + 1000))
-#     write.close()
+def generate_sample_vcf(filename='/Users/simonelongo/too_big_for_icloud/gnomad.genomes.r2.1.1.sites.vcf.bgz'):
+    """Takes a large VCF file and takes random samples from each chromosome to make a smaller VCF for testing"""
+    vcf = VCF(filename)
+    write = Writer('samp.vcf', vcf)
+    write.write_header()
+    for chrom_num, chrom_len in REF_GENOME:
+        begin = random.randint(1000, chrom_len - 1000)
+        os.system(append_variants_to_vcf(chrom_num, begin, begin + 1000))
+    write.close()
 
 
 def complement(c):
@@ -121,10 +122,12 @@ def find_ref_kmer_freq(kmer_length, ref_fasta):
     return outfile
 
 
-def ref_genome_as_string(ref_fasta):
+def ref_genome_as_string(ref_fasta, keys=None):
     ref_genome = Fasta(ref_fasta)
+    if keys is None:
+        keys = ref_genome.keys()
     ref_seq = ""
-    for chrom in ref_genome.keys():
+    for chrom in keys:
         ref_seq += str(ref_genome[chrom])
     return ref_seq
 
@@ -137,6 +140,25 @@ def is_vcf(f_path):
 
 
 def is_quality_variant(var_to_test):
+    """
+    high quality variants will have FILTER == None
+    AND we are ignoring insertions and deltions here
+    """
+    return var_to_test.FILTER is None and len(var_to_test.ALT) == 1 \
+           and len(var_to_test.REF) == 1 and len(var_to_test.ALT[0]) == 1
+
+
+def is_quality_nonsingleton(var_to_test):
+    """
+    high quality variants will have FILTER == None
+    Additionally, variants shoud NOT be singletons ('AC' != 1) meaning that it is a unique observation
+    AND we are ignoring insertions and deltions here
+    """
+    return var_to_test.FILTER is None and var_to_test.INFO.get('AC') != 1 and len(var_to_test.ALT) == 1 \
+           and len(var_to_test.REF) == 1 and len(var_to_test.ALT[0]) == 1
+
+
+def is_quality_singleton(var_to_test):
     """
     high quality variants will have FILTER == None
     Additionally, variants shoud be singletons ('AC' == 1) meaning that it is a unique observation
@@ -167,7 +189,7 @@ def get_variants(filepath):
     from kmertools.kclass import Variant
     variant_positions = defaultdict(lambda: defaultdict(Variant))
     for variant in VCF(filepath):
-        if is_quality_variant(variant):
+        if is_quality_singleton(variant):
             # join is required because 'ALT' is returned as a list
             variant_positions[variant.CHROM][variant.POS] = Variant(variant.REF, "".join(variant.ALT), variant.POS,
                                                                     variant.CHROM)
@@ -253,7 +275,7 @@ def process_vcf_region(vcf_path, regions):
     variant_positions = defaultdict(Variant)
     for region in regions:
         for variant in vcf(str(region)):
-            if is_quality_variant(variant):
+            if is_quality_singleton(variant):
                 variant_positions[variant.POS] = Variant(variant.REF, "".join(variant.ALT), variant.POS, variant.CHROM)
     print("VCF chunk processed")
     return variant_positions
@@ -363,3 +385,90 @@ def merge_defaultdict(dict_list):
             for alt, count in v.items():
                 master_count[k][alt] += count
     return master_count
+
+
+def split_seq(sequence, nprocs, overlap=None):
+    chunk_size = int(len(sequence) / nprocs) + 1
+    args = []
+    start = 0
+    end = chunk_size
+    for proc in range(nprocs):
+        if overlap is not None:
+            args.append(sequence[start:(end + overlap - 1)])
+        else:
+            args.append(sequence[start:end])
+        start = end
+        end += chunk_size
+        if end > len(sequence):
+            end = len(sequence)
+    return args
+
+
+def kmer_search(sequence, kmer_length):
+    counts = Counter()
+    for i in range(len(sequence) - (kmer_length - 1)):  # This takes the (1-based) reference sequence for chromosome 22
+        next_seq = sequence[i:(i + kmer_length)]
+        if not ('N' in next_seq or 'n' in next_seq):
+            counts[next_seq] += 1
+    return counts
+
+
+def get_kmer_count(sequence, kmer_length):
+    start = time.time()
+    args = split_seq(sequence, mp.cpu_count(), overlap=kmer_length)
+    args = [[seq, kmer_length] for seq in args]
+    pool = mp.Pool(mp.cpu_count())
+    results = [res.get() for res in [pool.starmap_async(kmer_search, args)]]
+    pool.close()
+    counts = Counter()
+    for result in results[0]:
+        for k, v in result.items():
+            counts[k] += v
+    print("Done in " + str(time.time() - start))
+    return counts
+
+
+def test_data(big=False):
+    fasta = '/Users/simonelongo/too_big_for_icloud/ref_genome/REFERENCE_GENOME_GRch37.fa'
+    big_vcf = '/Users/simonelongo/too_big_for_icloud/gnomad.genomes.r2.1.1.sites.vcf.bgz'
+    lil_vcf = '/Users/simonelongo/Documents/QuinlanLabFiles/kmer_data/data/samp.vcf.bgz'
+    if big:
+        return fasta, big_vcf
+    else:
+        return fasta, lil_vcf
+
+
+def combine_complements(dataframe):
+    # Pandas data frame indexed by k-mer sequence, with numeric values
+    total = defaultdict(Counter)
+    for index, row in dataframe.iterrows():
+        seq = Kmer(index)
+        for i in row.index:
+            # print(str(seq), str(row[i]))
+            total[seq][i] += row[i]
+    return pd.DataFrame.from_dict(total, orient='index')
+
+
+def get_primary_chroms(f_path):
+    split = os.path.splitext(f_path)
+    tokens = []
+    while len(split[1]) > 0:
+        tokens.append(split[1])
+        split = os.path.splitext(split[0])
+    if '.fa' in tokens:
+        fa = Fasta(f_path)
+        chrom_keys = [n for n in fa.keys() if len(n) < 6 and 'chrM' not in n]
+    if '.vcf' in tokens:
+        v = VCF(f_path)
+        chrom_keys = [n for n in v.seqnames if len(n) < 6 and 'chrM' not in n]
+    return chrom_keys
+
+
+def prepare_directory(parent='../results/'):
+    if parent is None:
+        parent = '../results/'
+    import datetime
+    directory = parent + datetime.datetime.now().strftime("results_%d%b%Y-%H%M/")
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+    return directory

@@ -1,4 +1,6 @@
 from collections import defaultdict, Counter
+from pyfaidx import Fasta
+from cyvcf2 import VCF
 
 
 class Variant:
@@ -83,6 +85,11 @@ class Kmer:
 
     def __gt__(self, other):
         return other.sequence > self.sequence
+
+    def __getitem__(self, item):
+        if not isinstance(item, (int, float)):
+            return ""
+        return self.sequence[item]
 
 
 class VCFRegion:
