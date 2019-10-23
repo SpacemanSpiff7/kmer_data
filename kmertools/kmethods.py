@@ -53,7 +53,7 @@ def generate_sample_vcf(filename='/Users/simonelongo/too_big_for_icloud/gnomad.g
     vcf = VCF(filename)
     write = Writer('samp.vcf', vcf)
     write.write_header()
-    for chrom_num, chrom_len in REF_GENOME:
+    for chrom_num, chrom_len in get_primary_chroms(filename):
         begin = random.randint(1000, chrom_len - 1000)
         os.system(append_variants_to_vcf(chrom_num, begin, begin + 1000))
     write.close()

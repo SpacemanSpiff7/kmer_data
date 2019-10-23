@@ -19,7 +19,7 @@ def process_region(region, vcf_path, fasta_path, kmer_size):
     start_idx_offset = int(kmer_size / 2 + 1)
     kmer_mid_idx = int(start_idx_offset - 1)  # also halfway index for kmer
     for section in region:
-        print('Processing ' + str(section))
+        print('Processing ' + str(section), flush=True)
         start_time = time.time()
         for variant in vcf(str(section)):
             if kt.is_quality_variant(variant):
@@ -40,7 +40,7 @@ def process_region(region, vcf_path, fasta_path, kmer_size):
                     if is_complete_sequence:
                         for alt in variant.ALT:
                             notsingleton_transitions[seq_context][alt] += 1
-        print('Time to complete section ' + str(section) + ': ' + str(time.time() - start_time))
+        print('Time to complete section ' + str(section) + ': ' + str(time.time() - start_time), flush=True)
         return {'all': [all_transitions, all_vars],
                 'singletons': [singleton_transitions, singletons],
                 'not_singletons': [notsingleton_transitions, not_singletons]}
