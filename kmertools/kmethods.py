@@ -2,7 +2,7 @@ import os
 import sys
 import random
 import time
-from collections import Counter, defaultdict
+from collections import Counter, defaultdict, Set
 import pandas as pd
 import multiprocessing as mp
 import numpy as np
@@ -169,8 +169,8 @@ def is_quality_singleton(var_to_test):
 
 
 def complete_sequence(adj_seq):
-    """If 'N' is present iin the sequence, kmer is undefined"""
-    return not ('N' in adj_seq or 'n' in adj_seq)
+    allowed = set('ACTG')
+    return set(adj_seq.upper()).issubset(allowed)
 
 
 def get_transition(ref, alt):
