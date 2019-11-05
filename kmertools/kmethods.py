@@ -1,4 +1,5 @@
 import os
+import shutil
 import sys
 import random
 import time
@@ -9,7 +10,7 @@ import numpy as np
 from pyfaidx import Fasta
 from cyvcf2 import VCF, Writer
 import itertools
-from kmertools import Variant, Storage, Kmer
+from kmertools import Variant, Kmer
 
 
 def ran_seq(chunk):
@@ -41,21 +42,31 @@ def gen_random_sequence(length):
     return random_seq
 
 
-def append_variants_to_vcf(chrom, start, stop):
-    return "tabix /Users/simonelongo/too_big_for_icloud/gnomad.genomes.r2.1.1.sites.vcf.bgz " + str(chrom) + ":" + str(
+def append_variants_to_vcf(filename, chrom, start, stop):
+    return "tabix " + filename + " " + str(chrom) + ":" + str(
         start) + "-" + str(
-        stop) + " >> samp.vcf"
+        stop) + " >> samp_build38.vcf"
+
+
+def get_vcf_lengths_and_names(vcf_p):
+    v = VCF(vcf_p)
+    key_values = zip(v.seqnames, v.seqlens)
+    chrom_keys = defaultdict(int)
+    for kv in list(key_values):
+        if len(kv[0]) < 6 and 'chrM' not in kv[0]:
+            chrom_keys[kv[0]] = kv[1]
+    return chrom_keys
 
 
 # TODO: Fix so that reference is not used
 def generate_sample_vcf(filename='/Users/simonelongo/too_big_for_icloud/gnomad.genomes.r2.1.1.sites.vcf.bgz'):
     """Takes a large VCF file and takes random samples from each chromosome to make a smaller VCF for testing"""
     vcf = VCF(filename)
-    write = Writer('samp.vcf', vcf)
+    write = Writer('samp_build38.vcf', vcf)
     write.write_header()
-    for chrom_num, chrom_len in get_primary_chroms(filename):
-        begin = random.randint(1000, chrom_len - 1000)
-        os.system(append_variants_to_vcf(chrom_num, begin, begin + 1000))
+    for chrom_num, chrom_len in get_vcf_lengths_and_names(filename).items():
+        begin = random.randint(100000, chrom_len - 100000)
+        os.system(append_variants_to_vcf(filename, chrom_num, begin, begin + 10_000))
     write.close()
 
 
@@ -196,37 +207,37 @@ def get_variants(filepath):
     return variant_positions
 
 
-def process_variants_old(variants, kmer_size, ref_fasta):
-    print('This method has been deprecated... for now.')
-    if not kmer_size % 2 == 1:
-        kmer_size += 1  # kmer size must be an odd number.
-    if not isinstance(variants, pd.DataFrame):
-        print("Reading variant file.")
-        variants_df = pd.read_csv(variants, sep='\t', low_memory=False)
-    ref = Fasta(ref_fasta)
-    transitions = defaultdict(Counter)
-    start_idx_offset = int(kmer_size / 2 + 1)
-    kmer_mid_idx = int(start_idx_offset - 1)  # also halfway index for kmer
-    print("Processing variant file")
-    width = 40
-    setup_progressbar(toolbar_width=width)
-    df_prog_inc = int(len(variants_df) / width)
-    for idx, row in variants_df.iterrows():
-        if idx % df_prog_inc == 0:
-            sys.stdout.write("-")
-            sys.stdout.flush()
-        position = row['POS']
-        # take 7mer around variant. pyfaidx excludes start index and includes end index
-        adj_seq = ref[str(row['CHROM'])][(position - start_idx_offset):(position + kmer_mid_idx)].seq
-        if complete_sequence(adj_seq):
-            transitions[adj_seq][row['ALT']] += 1
-    sys.stdout.write("]\n")  # this ends the progress bar
-
-    count_fpath = "bp_counts_per" + str(kmer_size) + "mer.csv"
-    transitions_df = pd.DataFrame.from_dict(transitions, orient='index')
-    # merged_df = pd.merge(transitions_df, find_ref_kmer_freq(kmer_size), left_index=True, right_index=True, how='inner')
-    transitions_df.to_csv(count_fpath)
-    return transitions_df
+# def process_variants_old(variants, kmer_size, ref_fasta):
+#     print('This method has been deprecated... for now.')
+#     if not kmer_size % 2 == 1:
+#         kmer_size += 1  # kmer size must be an odd number.
+#     if not isinstance(variants, pd.DataFrame):
+#         print("Reading variant file.")
+#         variants_df = pd.read_csv(variants, sep='\t', low_memory=False)
+#     ref = Fasta(ref_fasta)
+#     transitions = defaultdict(Counter)
+#     start_idx_offset = int(kmer_size / 2 + 1)
+#     kmer_mid_idx = int(start_idx_offset - 1)  # also halfway index for kmer
+#     print("Processing variant file")
+#     width = 40
+#     setup_progressbar(toolbar_width=width)
+#     df_prog_inc = int(len(variants_df) / width)
+#     for idx, row in variants_df.iterrows():
+#         if idx % df_prog_inc == 0:
+#             sys.stdout.write("-")
+#             sys.stdout.flush()
+#         position = row['POS']
+#         # take 7mer around variant. pyfaidx excludes start index and includes end index
+#         adj_seq = ref[str(row['CHROM'])][(position - start_idx_offset):(position + kmer_mid_idx)].seq
+#         if complete_sequence(adj_seq):
+#             transitions[adj_seq][row['ALT']] += 1
+#     sys.stdout.write("]\n")  # this ends the progress bar
+#
+#     count_fpath = "bp_counts_per" + str(kmer_size) + "mer.csv"
+#     transitions_df = pd.DataFrame.from_dict(transitions, orient='index')
+#     # merged_df = pd.merge(transitions_df, find_ref_kmer_freq(kmer_size), left_index=True, right_index=True, how='inner')
+#     transitions_df.to_csv(count_fpath)
+#     return transitions_df
 
 
 def generate_csv_from_variants(variants, outfile="variants_samp.csv", close=False):
@@ -256,12 +267,6 @@ def split_pandas_rows(df):
     chunks = [df.ix[df.index[i:i + chunk_size]] for i in range(0, df.shape[0], chunk_size)]
 
 
-def generate_heatmap(transitions, kmer_length):
-    kmer_freq = find_ref_kmer_freq(kmer_length)
-    merged = transitions.join(kmer_freq, how='inner')
-    # TODO: implement
-
-
 def setup_progressbar(toolbar_width=40):
     """taken from: https://stackoverflow.com/questions/3160699/python-progress-bar"""
     # setup toolbar
@@ -279,66 +284,6 @@ def process_vcf_region(vcf_path, regions):
                 variant_positions[variant.POS] = Variant(variant.REF, "".join(variant.ALT), variant.POS, variant.CHROM)
     print("VCF chunk processed")
     return variant_positions
-
-
-# FIXME
-# def process_vcf_region2(regions, kmer_size=3):
-#     """
-#     Process VCF Regions 2: Electric Boogaloo
-#         Returns a list of variants and the transitions in one sweep. That's wassup!
-#     """
-#     vcf = VCF(constants.VCF_PATH)
-#     # variant_positions = defaultdict(Variant)
-#     ref = Fasta(REF_FASTA_PATH)
-#     transitions = defaultdict(Counter)
-#     variant_positions = defaultdict(Variant)
-#     start_idx_offset = int(kmer_size / 2 + 1)
-#     kmer_mid_idx = int(start_idx_offset - 1)  # also halfway index for kmer
-#     for region in regions:
-#         for variant in vcf(str(region)):
-#             if is_quality_variant(variant):
-#                 new_var = Variant(variant.REF, "".join(variant.ALT), variant.POS, variant.CHROM)
-#                 variant_positions[variant.POS] = new_var
-#                 # take 7mer around variant. pyfaidx excludes start index and includes end index
-#                 adj_seq = ref[str(variant.CHROM)][(variant.POS - start_idx_offset):(variant.POS + kmer_mid_idx)].seq
-#                 if complete_sequence(adj_seq):
-#                     transitions[adj_seq][variant.ALT[0]] += 1
-#     print("VCF chunk processed")
-#     return [transitions, variant_positions]
-
-
-# def run_vcf_parallel(vcf_path, nprocs):
-#     if constants.VCF_PATH != vcf_path:
-#         constants.VCF_PATH = vcf_path
-#     regions = get_split_vcf_regions(vcf_path, nprocs)
-#     pool = mp.Pool(nprocs)
-#     results = [funccall.get() for funccall in [pool.map_async(process_vcf_region2, regions)]]
-#     pool.close()
-#     return results
-
-
-# def vcf_parallel(vcf_path, nprocs, outfile='genome_variants_agg.csv', store=True):
-#     if nprocs == 0:
-#         nprocs = mp.cpu_count()
-#     results = run_vcf_parallel(vcf_path, nprocs)
-#     output = open(outfile, "a+")
-#     output.write("CHROM\tPOS\tREF\tALT\n")  # header same for all
-#     transitions_list = []
-#     for result in results[0]:
-#         if isinstance(list(result[0].values())[0], Variant):
-#             for k, v in result.items():
-#                 output.write(str(v))
-#         else:
-#             transitions_list.append(result[0])
-#     output.close()
-#     print(outfile + " saved.")
-#     print("Done reading VCF file.")
-#     merged_dict = merge_defaultdict(transitions_list)
-#     if store:
-#         count_fpath = "bp_counts_per" + str(constants.KMER_SIZE) + "mer.csv"
-#         transitions_df = pd.DataFrame.from_dict(merged_dict, orient='index')
-#         transitions_df.to_csv(count_fpath)
-#     return merged_dict
 
 
 def get_split_vcf_regions(vcf_path, nprocs):
@@ -429,14 +374,23 @@ def get_kmer_count(sequence, kmer_length):
     return counts
 
 
-def test_data(big=False):
-    fasta = '/Users/simonelongo/too_big_for_icloud/ref_genome/REFERENCE_GENOME_GRch37.fa'
-    big_vcf = '/Users/simonelongo/too_big_for_icloud/gnomad.genomes.r2.1.1.sites.vcf.bgz'
-    lil_vcf = '/Users/simonelongo/Documents/QuinlanLabFiles/kmer_data/data/samp.vcf.bgz'
-    if big:
-        return fasta, big_vcf
+def test_data(big=False, new_build=True):
+    if not new_build:
+        fasta = '/Users/simonelongo/too_big_for_icloud/ref_genome/REFERENCE_GENOME_GRch37.fa'
+        big_vcf = '/Users/simonelongo/too_big_for_icloud/gnomad.genomes.r2.1.1.sites.vcf.bgz'
+        lil_vcf = '/Users/simonelongo/Documents/QuinlanLabFiles/kmer_data/data/samp.vcf.bgz'
+        vbed = '/Users/simonelongo/Documents/QuinlanLabFiles/kmer_data/results/results_23Oct2019-1046/all_vars.bed'
+        vbed_big = vbed
     else:
-        return fasta, lil_vcf
+        lil_vcf = '/Users/simonelongo/Documents/QuinlanLabFiles/kmer_data/data/samp_build38.vcf.bgz'
+        fasta = '/Users/simonelongo/too_big_for_icloud/ref_genome/hg38/hg38.fa'
+        big_vcf = '/Users/simonelongo/too_big_for_icloud/gnomAD_v3/gnomad.genomes.r3.0.sites.vcf.bgz'
+        vbed_big = '/Users/simonelongo/too_big_for_icloud/all_vars_build38.bed'
+        vbed = '/Users/simonelongo/Documents/QuinlanLabFiles/kmer_data/data/sorted_vars_build38.bed'
+    if big:
+        return fasta, big_vcf, vbed_big
+    else:
+        return fasta, lil_vcf, vbed
 
 
 def combine_complements(dataframe):
@@ -458,18 +412,98 @@ def get_primary_chroms(f_path):
         split = os.path.splitext(split[0])
     if '.fa' in tokens:
         fa = Fasta(f_path)
-        chrom_keys = [n for n in fa.keys() if len(n) < 6 and 'chrM' not in n]
-    if '.vcf' in tokens:
+        chrom_vcf_keys = [n for n in fa.keys() if len(n) < 6 and 'chrM' not in n]
+    elif '.vcf' in tokens:
         v = VCF(f_path)
-        chrom_keys = [n for n in v.seqnames if len(n) < 6 and 'chrM' not in n]
-    return chrom_keys
+        chrom_vcf_keys = [n for n in v.seqnames if len(n) < 6 and 'chrM' not in n]
+    else:
+        return None
+    return chrom_vcf_keys
 
 
-def prepare_directory(parent='../results/'):
+def prepare_directory(parent='../results/', new_folder=None):
     if parent is None:
         parent = '../results/'
     import datetime
-    directory = parent + datetime.datetime.now().strftime("results_%d%b%Y-%H%M/")
+    if new_folder is not None:
+        if new_folder[-1] not in '/':
+            new_folder += '/'
+        directory = parent + new_folder
+    else:
+        directory = parent + datetime.datetime.now().strftime("results_%d%b%Y-%H%M/")
     if not os.path.exists(directory):
         os.makedirs(directory)
+    return directory
+
+
+def write_ref_var_file(directory, key, seqvar):
+    fp = open(directory + key + '.tsv', 'w')
+    fp.write('REF_fasta\tALT\tREF_vcf\n')
+    for rec in seqvar:
+        for i in rec:
+            fp.write(str(i) + '\t')
+    fp.close()
+    return
+
+
+def zip_chrom(key, df, ref, directory):
+    fa = Fasta(ref)
+    seq = str(fa[key])
+    varray = [None for _ in range(len(seq))]
+    for index, row in df.iterrows():
+        varray[row['POS'] - 1] = (row['ALT'], row['REF'])
+    write_ref_var_file(directory, key, zip(list(seq), varray))
+    return  # [key, zip(list(seq), varray)]
+
+
+def write_ref_dict_file(ref_dict):
+    directory = prepare_directory(parent='./ref_var_dict/')
+    for key, value in ref_dict:
+        fp = open(directory + key + '.csv', 'w')
+        fp.write('REF_fasta\tALT\tREF_vcf\n')
+        for rec in value:
+            i = 0
+            for idx in rec:
+                if i > 0 and idx is not None:
+                    for val in idx:
+                        fp.write(str(val) + '\t')
+                else:
+                    fp.write(str(idx) + '\t')
+                i += 1
+        fp.close()
+
+
+def prepare_reference_dict(fasta_path, variants, delim='\t', primary_chroms=True):
+    """
+    :param primary_chroms: boolean True means only include original autosomal chromosomes, False includes everything
+    :param delim: indicates how your variant file is separated
+    :param fasta_path: path to file containing reference sequence
+    :param variants: path to bed file containing the variants in the reference sequence
+    :return: a dictionary mapping chromosome names to an array of tuples containing the reference allele in the first index and the variant allele in the second index if it exists
+    """
+    start = time.time()
+    fa = Fasta(fasta_path)
+    var_df = pd.read_csv(variants, sep=delim)
+    if primary_chroms:
+        keys = get_primary_chroms(fasta_path)
+    else:
+        keys = fa.keys()
+    args = []
+    directory = prepare_directory(new_folder='./ref_var_dict/')
+    for key in keys:
+        args.append((key, var_df[var_df.iloc[:, 0] == key], fasta_path, directory))
+    pool = mp.Pool(mp.cpu_count())
+    results = [funccall.get() for funccall in [pool.starmap_async(zip_chrom, args)]]
+    pool.close()
+    print('Done processing variants in %f' % (time.time() - start))
+    directory = prepare_directory(parent='./ref_var_dict/')
+    for chrom_key in results[0]:
+        fp = open(directory + chrom_key[0] + '.csv', 'w')
+        fp.write('REF_fasta\tALT\tREF_vcf')
+        for rec in chrom_key[1]:
+            for i in rec:
+                fp.write(str(i) + '\t')
+            fp.write('\n')
+        fp.close()
+    print('Reference dictionary prepared in %f' % (time.time() - start))
     return directory

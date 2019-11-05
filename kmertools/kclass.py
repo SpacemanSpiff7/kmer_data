@@ -58,7 +58,7 @@ class Variant:
 class Kmer:
     def __init__(self, sequence):
         from kmertools.kmethods import get_complementary_sequence
-        self.sequence = sequence
+        self.sequence = sequence.upper()
         self.complement = get_complementary_sequence(sequence)
         if self.complement < self.sequence:
             temp = self.sequence

@@ -44,13 +44,13 @@ def gen_random_sequence(length):
 def append_variants_to_vcf(chrom, start, stop):
     return "tabix /Users/simonelongo/too_big_for_icloud/gnomad.genomes.r2.1.1.sites.vcf.bgz " + str(chrom) + ":" + str(
         start) + "-" + str(
-        stop) + " >> samp.vcf"
+        stop) + " >> samp_build38.vcf"
 
 
 def generate_sample_vcf(filename='/Users/simonelongo/too_big_for_icloud/gnomad.genomes.r2.1.1.sites.vcf.bgz'):
     """Takes a large VCF file and takes random samples from each chromosome to make a smaller VCF for testing"""
     vcf = VCF(filename)
-    write = Writer('samp.vcf', vcf)
+    write = Writer('samp_build38.vcf', vcf)
     write.write_header()
     for chrom_num, chrom_len in REF_GENOME:
         begin = random.randint(1000, chrom_len - 1000)

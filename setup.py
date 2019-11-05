@@ -14,5 +14,6 @@ setup(
         "cyvcf2",
         "pandas",
         "numpy",
+        "pytabix",
     ],
 )

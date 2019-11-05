@@ -4,7 +4,7 @@ from cyvcf2 import VCF
 from kmertools import is_quality_singleton, generate_csv_from_variants
 from kmertools.kclass import Variant
 
-vcf_path = '../samp.vcf.bgz'
+vcf_path = '../samp_build38.vcf.bgz'
 
 
 def process_region(chr_num):

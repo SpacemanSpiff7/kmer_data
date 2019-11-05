@@ -16,6 +16,7 @@ def process_region(region, vcf_path, fasta_path, kmer_size):
     singletons = defaultdict(kt.Variant)
     not_singletons = defaultdict(kt.Variant)
     all_vars = defaultdict(kt.Variant)
+    mismatch = defaultdict(str)
     start_idx_offset = int(kmer_size / 2 + 1)
     kmer_mid_idx = int(start_idx_offset - 1)  # also halfway index for kmer
     for section in region:
@@ -25,7 +26,14 @@ def process_region(region, vcf_path, fasta_path, kmer_size):
             if kt.is_quality_variant(variant):
                 new_var = kt.Variant(variant.REF, "".join(variant.ALT), variant.POS, variant.CHROM)
                 all_vars[variant.POS] = new_var
+<<<<<<< Updated upstream
                 seq_context = ref[str(variant.CHROM)][(variant.POS - start_idx_offset):(variant.POS + kmer_mid_idx)].seq.upper()
+=======
+                seq_context = ref[str(variant.CHROM)][
+                              (variant.POS - start_idx_offset):(variant.POS + kmer_mid_idx)].seq.upper()
+                if seq_context[kmer_mid_idx] != variant.REF:
+                    mismatch[new_var] = seq_context
+>>>>>>> Stashed changes
                 is_complete_sequence = False
                 if kt.complete_sequence(seq_context):
                     is_complete_sequence = True
@@ -42,7 +50,8 @@ def process_region(region, vcf_path, fasta_path, kmer_size):
         print('Time to complete section ' + str(section) + ': ' + str(time.time() - start_time), flush=True)
         return {'all': [all_transitions, all_vars],
                 'singletons': [singleton_transitions, singletons],
-                'not_singletons': [notsingleton_transitions, not_singletons]}
+                'not_singletons': [notsingleton_transitions, not_singletons],
+                'mismatches': [mismatch]}
 
 
 def merge_and_save(results, destination):
@@ -52,21 +61,30 @@ def merge_and_save(results, destination):
         output = open((destination + results[0] + '.bed'), "a+")
         output.write("CHROM\tPOS\tREF\tALT\n")  # header same for all
         for variant in results[1:]:
-            for k, v in variant.items():
-                master_var[k] = v
-                output.write(str(v))
+            for k, val in variant.items():
+                master_var[k] = val
+                output.write(str(val))
         output.close()
         return master_var
     if 'transitions' in results[0]:  # kmer transitions stored as defaultdict(Counter) indexed by kmer
         master_count = defaultdict(Counter)
         for counts in results[1:]:
-            for k, v in counts.items():
-                for alt, count in v.items():
+            for k, val in counts.items():
+                for alt, count in val.items():
                     master_count[k][alt] += count
         merged_df = pd.DataFrame.from_dict(master_count, orient='index')
         fname = destination + results[0] + '.csv'
         merged_df.to_csv(fname)
         return master_count
+    if 'mismatch' in results[0]:
+        all_mis = defaultdict(str)
+        for mm in results[1:]:
+            for k, val in mm.items():
+                all_mis[k] = val
+        merged_df = pd.DataFrame.from_dict(all_mis, orient='index')
+        fname = destination + results[0] + '.csv'
+        merged_df.to_csv(fname)
+        return all_mis
     pass
 
 
@@ -106,8 +124,8 @@ class GenVCF:
         results = [funccall.get() for funccall in [pool.starmap_async(process_region, args)]]
         pool.close()
         all_vars, singletons, not_singletons = ['all_vars'], ['singleton_vars'], ['notsingleton_vars']
-        all_transitions, singleton_transitions, notsingleton_transitions = ['all_transitions'], [
-            'singleton_transitions'], ['notsingleton_transitions']
+        all_transitions, singleton_transitions, notsingleton_transitions, mismatches = ['all_transitions'], [
+            'singleton_transitions'], ['notsingleton_transitions'], ['mismatches']
         for result in results[0]:
             for key, value in result.items():
                 if key == 'all':
@@ -119,17 +137,19 @@ class GenVCF:
                 if key == 'not_singletons':
                     notsingleton_transitions.append(value[0])
                     not_singletons.append(value[1])
+                if key == 'mismatches':
+                    mismatches.append(value[0])
         all_results = [all_vars, singletons, not_singletons, all_transitions, singleton_transitions,
-                       notsingleton_transitions]
+                       notsingleton_transitions, mismatches]
         destination = kt.prepare_directory(parent=self.directory)
         for res in all_results:
             merge_and_save(res, destination)
-        return results
+        return #results
 
 
 if __name__ == "__main__":
     start = time.time()
-    f, v = kt.test_data()
+    f, v, vb = kt.test_data()
     gv = GenVCF(f, v, 3, 6)
     r = gv.vcf_scan()
     print('Done in ' + str(time.time() - start) + ' seconds')
