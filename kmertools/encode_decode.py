@@ -34,7 +34,7 @@ def decoder(sequence):
 def encode_sequence(sequence):
     pool = mp.Pool()
     nprocs = mp.cpu_count()
-    args = split_seq(nprocs, sequence)
+    args = split_seq(sequence, nprocs)
     results = [funccall.get() for funccall in [pool.map_async(encoder, args)]]
     pool.close()
     encoded_seq = []

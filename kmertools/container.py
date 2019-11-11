@@ -26,14 +26,11 @@ def process_region(region, vcf_path, fasta_path, kmer_size):
             if kt.is_quality_variant(variant):
                 new_var = kt.Variant(variant.REF, "".join(variant.ALT), variant.POS, variant.CHROM)
                 all_vars[variant.POS] = new_var
-<<<<<<< Updated upstream
                 seq_context = ref[str(variant.CHROM)][(variant.POS - start_idx_offset):(variant.POS + kmer_mid_idx)].seq.upper()
-=======
                 seq_context = ref[str(variant.CHROM)][
                               (variant.POS - start_idx_offset):(variant.POS + kmer_mid_idx)].seq.upper()
                 if seq_context[kmer_mid_idx] != variant.REF:
                     mismatch[new_var] = seq_context
->>>>>>> Stashed changes
                 is_complete_sequence = False
                 if kt.complete_sequence(seq_context):
                     is_complete_sequence = True
